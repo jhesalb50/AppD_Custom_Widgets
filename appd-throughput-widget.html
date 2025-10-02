@@ -1,0 +1,741 @@
+<!DOCTYPE html><html lang="en"><head><meta name="x-poe-datastore-behavior" content="local_only"><meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://code.jquery.com https://unpkg.com https://d3js.org https://threejs.org https://cdn.plot.ly https://stackpath.bootstrapcdn.com https://maps.googleapis.com https://cdn.tailwindcss.com https://ajax.googleapis.com https://kit.fontawesome.com https://cdn.datatables.net https://maxcdn.bootstrapcdn.com https://code.highcharts.com https://tako-static-assets-production.s3.amazonaws.com https://www.youtube.com https://fonts.googleapis.com https://fonts.gstatic.com https://pfst.cf2.poecdn.net https://puc.poecdn.net https://i.imgur.com https://wikimedia.org https://*.icons8.com https://*.giphy.com https://picsum.photos https://images.unsplash.com; frame-src 'self' https://www.youtube.com https://trytako.com; child-src 'self'; manifest-src 'self'; worker-src 'self'; upgrade-insecure-requests; block-all-mixed-content;">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AppDynamics Business Throughput Widget</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #333;
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+
+        .widget-container {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 25px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
+            text-align: center;
+            width: 100%;
+            max-width: 400px;
+            height: 100%;
+            max-height: 500px;
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .widget-container::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, #4CAF50, #2196F3, #FF9800, #F44336);
+            border-radius: 20px 20px 0 0;
+        }
+
+        .widget-header {
+            margin-bottom: 20px;
+            flex-shrink: 0;
+        }
+
+        .widget-title {
+            font-size: 20px;
+            font-weight: 700;
+            color: #2c3e50;
+            margin-bottom: 4px;
+        }
+
+        .widget-subtitle {
+            font-size: 12px;
+            color: #7f8c8d;
+            font-weight: 500;
+        }
+
+        .gauge-container {
+            position: relative;
+            width: 250px;
+            height: 150px;
+            margin: 15px auto;
+            flex-shrink: 0;
+        }
+
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin: 15px 0;
+            flex-grow: 1;
+        }
+
+        .metric-card {
+            background: linear-gradient(145deg, #f8f9fa, #e9ecef);
+            border-radius: 10px;
+            padding: 12px;
+            text-align: center;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+            transition: transform 0.2s ease;
+        }
+
+        .metric-card:hover {
+            transform: translateY(-1px);
+        }
+
+        .metric-value {
+            font-size: 16px;
+            font-weight: 700;
+            color: #2c3e50;
+            margin-bottom: 2px;
+        }
+
+        .metric-label {
+            font-size: 9px;
+            color: #7f8c8d;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            font-weight: 600;
+        }
+
+        .status-indicator {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #4CAF50;
+            box-shadow: 0 0 8px rgba(76, 175, 80, 0.5);
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { box-shadow: 0 0 8px rgba(76, 175, 80, 0.5); }
+            50% { box-shadow: 0 0 15px rgba(76, 175, 80, 0.8); }
+            100% { box-shadow: 0 0 8px rgba(76, 175, 80, 0.5); }
+        }
+
+        .performance-indicator {
+            padding: 8px;
+            border-radius: 6px;
+            font-size: 10px;
+            font-weight: 600;
+            margin-top: auto;
+            flex-shrink: 0;
+        }
+
+        .excellent { background: #d4edda; color: #155724; }
+        .good { background: #cce8f4; color: #004085; }
+        .warning { background: #fff3cd; color: #856404; }
+        .critical { background: #f8d7da; color: #721c24; }
+
+        .timestamp {
+            position: absolute;
+            bottom: 8px;
+            right: 12px;
+            font-size: 8px;
+            color: #adb5bd;
+            font-weight: 500;
+        }
+
+        .error-state {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 10px;
+            border-radius: 6px;
+            margin: 5px 0;
+            border: 1px solid #f5c6cb;
+            font-size: 11px;
+        }
+
+        .loading {
+            color: #6c757d;
+            font-style: italic;
+            font-size: 14px;
+        }
+
+        .config-panel {
+            position: absolute;
+            top: 40px;
+            right: 15px;
+            background: white;
+            border-radius: 8px;
+            padding: 10px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            display: none;
+            z-index: 100;
+            min-width: 120px;
+        }
+
+        .config-toggle {
+            position: absolute;
+            top: 15px;
+            right: 35px;
+            width: 16px;
+            height: 16px;
+            background: #6c757d;
+            border-radius: 3px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 10px;
+            color: white;
+            transition: background 0.2s ease;
+        }
+
+        .config-toggle:hover {
+            background: #495057;
+        }
+
+        .config-panel select,
+        .config-panel input {
+            width: 100%;
+            font-size: 10px;
+            padding: 4px;
+            margin-bottom: 6px;
+            border: 1px solid #ddd;
+            border-radius: 3px;
+        }
+
+        .config-panel label {
+            font-size: 9px;
+            color: #666;
+            display: block;
+            margin-bottom: 2px;
+        }
+
+        .connection-status {
+            position: absolute;
+            top: 15px;
+            left: 15px;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #28a745;
+        }
+
+        .connection-status.connecting {
+            background: #ffc107;
+            animation: pulse 1s infinite;
+        }
+
+        .connection-status.error {
+            background: #dc3545;
+            animation: none;
+        }
+
+        .refresh-button {
+            position: absolute;
+            bottom: 8px;
+            left: 12px;
+            background: none;
+            border: none;
+            color: #adb5bd;
+            font-size: 8px;
+            cursor: pointer;
+            padding: 2px;
+            border-radius: 2px;
+            transition: color 0.2s ease;
+        }
+
+        .refresh-button:hover {
+            color: #6c757d;
+        }
+
+        .no-data {
+            color: #6c757d;
+            font-size: 12px;
+            font-style: italic;
+            margin: 20px 0;
+        }
+    </style>
+<script src="https://puc.poecdn.net/authenticated_preview_page/syncedState.bd4eeeb8e8e02052ee92.js"></script></head>
+<body>
+    <div class="widget-container">
+        <div class="connection-status" id="connectionStatus"></div>
+        <div class="status-indicator" id="statusIndicator"></div>
+        <div class="config-toggle" id="configToggle" title="Settings">⚙</div>
+        
+        <div class="config-panel" id="configPanel">
+            <div style="font-size: 10px; margin-bottom: 8px; font-weight: 600;">Configuration</div>
+            
+            <label for="appSelector">Application:</label>
+            <select id="appSelector">
+                <option value="">Loading applications...</option>
+            </select>
+            
+            <label for="maxThroughput">Max RPM Target:</label>
+            <input type="number" id="maxThroughput" placeholder="10000" value="10000">
+            
+            <label for="timeRange">Time Range:</label>
+            <select id="timeRange">
+                <option value="10">10 minutes</option>
+                <option value="30">30 minutes</option>
+                <option value="60" selected="">1 hour</option>
+                <option value="180">3 hours</option>
+            </select>
+        </div>
+        
+        <div class="widget-header">
+            <h1 class="widget-title">Business Throughput</h1>
+            <p class="widget-subtitle" id="applicationName">Initializing...</p>
+        </div>
+
+        <div class="gauge-container">
+            <canvas id="throughputGauge"></canvas>
+        </div>
+
+        <div class="metrics-grid">
+            <div class="metric-card">
+                <div class="metric-value loading" id="currentRpm">--</div>
+                <div class="metric-label">RPM</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-value loading" id="responseTime">--</div>
+                <div class="metric-label">Response</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-value loading" id="errorRate">--</div>
+                <div class="metric-label">Errors</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-value loading" id="availability">--</div>
+                <div class="metric-label">Uptime</div>
+            </div>
+        </div>
+
+        <div class="performance-indicator excellent" id="performanceStatus">
+            Initializing Performance Monitor...
+        </div>
+
+        <button class="refresh-button" id="refreshButton" title="Refresh Data">↻</button>
+        <div class="timestamp" id="lastUpdate">Starting...</div>
+
+        <div id="errorContainer"></div>
+    </div>
+
+    <script>
+        class AppDynamicsThroughputWidget {
+            constructor() {
+                // Configuration - Update this URL to your deployed proxy server
+                this.config = {
+                    proxyUrl: window.location.hostname === 'localhost' 
+                        ? 'http://localhost:3000/api/appd'
+                        : '/api/appd' // Use relative URL in production
+                };
+                
+                this.applications = [];
+                this.selectedAppId = null;
+                this.maxThroughput = 10000;
+                this.gauge = null;
+                this.refreshInterval = null;
+                this.isLoading = false;
+                
+                this.initialize();
+            }
+
+            async initialize() {
+                try {
+                    this.updateConnectionStatus('connecting');
+                    this.setupEventListeners();
+                    this.initializeGauge();
+                    
+                    await this.loadApplications();
+                    await this.loadData();
+                    
+                    this.startAutoRefresh();
+                    this.updateConnectionStatus('connected');
+                } catch (error) {
+                    console.error('Initialization error:', error);
+                    this.showError('Initialization failed: ' + error.message);
+                    this.updateConnectionStatus('error');
+                }
+            }
+
+            setupEventListeners() {
+                // Config panel toggle
+                document.getElementById('configToggle').addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const panel = document.getElementById('configPanel');
+                    panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+                });
+
+                // Application selector
+                document.getElementById('appSelector').addEventListener('change', (e) => {
+                    this.selectedAppId = e.target.value;
+                    if (this.selectedAppId) {
+                        const selectedApp = this.applications.find(app => app.id == this.selectedAppId);
+                        document.getElementById('applicationName').textContent = selectedApp ? selectedApp.name : 'Unknown Application';
+                        this.loadData();
+                    }
+                });
+
+                // Max throughput setting
+                document.getElementById('maxThroughput').addEventListener('change', (e) => {
+                    this.maxThroughput = parseInt(e.target.value) || 10000;
+                    this.updateGauge();
+                });
+
+                // Time range selector
+                document.getElementById('timeRange').addEventListener('change', () => {
+                    this.loadData();
+                });
+
+                // Manual refresh
+                document.getElementById('refreshButton').addEventListener('click', () => {
+                    this.loadData();
+                });
+
+                // Close config panel when clicking outside
+                document.addEventListener('click', (e) => {
+                    if (!e.target.closest('.config-panel') && !e.target.closest('.config-toggle')) {
+                        document.getElementById('configPanel').style.display = 'none';
+                    }
+                });
+            }
+
+            async loadApplications() {
+                try {
+                    console.log('Loading applications from:', `${this.config.proxyUrl}/rest/applications?output=JSON`);
+                    
+                    const response = await fetch(`${this.config.proxyUrl}/rest/applications?output=JSON`);
+                    
+                    if (!response.ok) {
+                        const errorText = await response.text();
+                        throw new Error(`Failed to load applications: ${response.status} - ${errorText}`);
+                    }
+
+                    this.applications = await response.json();
+                    console.log('Applications loaded:', this.applications);
+                    
+                    if (!Array.isArray(this.applications) || this.applications.length === 0) {
+                        throw new Error('No applications found or invalid response format');
+                    }
+                    
+                    const selector = document.getElementById('appSelector');
+                    selector.innerHTML = '<option value="">Select Application</option>';
+                    
+                    this.applications.forEach(app => {
+                        const option = document.createElement('option');
+                        option.value = app.id;
+                        option.textContent = app.name;
+                        selector.appendChild(option);
+                    });
+
+                    // Auto-select first application
+                    if (this.applications.length > 0 && !this.selectedAppId) {
+                        this.selectedAppId = this.applications[0].id;
+                        selector.value = this.selectedAppId;
+                        document.getElementById('applicationName').textContent = this.applications[0].name;
+                    }
+                } catch (error) {
+                    console.error('Error loading applications:', error);
+                    this.showError('Failed to load applications: ' + error.message);
+                    throw error;
+                }
+            }
+
+            async getMetricData(metricPath, timeRangeMinutes = 60) {
+                const endTime = Date.now();
+                const startTime = endTime - (timeRangeMinutes * 60 * 1000);
+
+                const params = new URLSearchParams({
+                    'metric-path': metricPath,
+                    'time-range-type': 'BETWEEN_TIMES',
+                    'start-time': startTime.toString(),
+                    'end-time': endTime.toString(),
+                    'rollup': 'true',
+                    'output': 'JSON'
+                });
+
+                const url = `${this.config.proxyUrl}/rest/applications/${this.selectedAppId}/metric-data?${params}`;
+                console.log('Fetching metric data from:', url);
+
+                const response = await fetch(url);
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`Metric API failed: ${response.status} - ${errorText}`);
+                }
+
+                const data = await response.json();
+                return Array.isArray(data) ? data : [];
+            }
+
+            async loadData() {
+                if (!this.selectedAppId || this.isLoading) return;
+
+                this.isLoading = true;
+                try {
+                    this.updateConnectionStatus('connecting');
+                    
+                    const timeRange = parseInt(document.getElementById('timeRange').value) || 60;
+                    
+                    console.log('Loading data for application:', this.selectedAppId);
+
+                    const [throughputData, responseTimeData, errorData] = await Promise.all([
+                        this.getMetricData('Application Infrastructure Performance|*|Individual Nodes|*|Agent|HTTP Service Calls|Calls per Minute', timeRange),
+                        this.getMetricData('Application Infrastructure Performance|*|Individual Nodes|*|Agent|HTTP Service Calls|Average Response Time (ms)', timeRange),
+                        this.getMetricData('Application Infrastructure Performance|*|Individual Nodes|*|Agent|HTTP Service Calls|Errors per Minute', timeRange)
+                    ]);
+
+                    console.log('Metric data received:', { throughputData, responseTimeData, errorData });
+
+                    const metrics = this.processMetrics(throughputData, responseTimeData, errorData);
+                    this.updateUI(metrics);
+                    this.clearError();
+                    this.updateConnectionStatus('connected');
+                } catch (error) {
+                    console.error('Error loading data:', error);
+                    this.showError('Data loading failed: ' + error.message);
+                    this.updateConnectionStatus('error');
+                } finally {
+                    this.isLoading = false;
+                }
+            }
+
+            processMetrics(throughputData, responseTimeData, errorData) {
+                const currentRpm = this.getLatestValue(throughputData);
+                const responseTime = this.getLatestValue(responseTimeData);
+                const errorsPerMin = this.getLatestValue(errorData);
+                
+                const errorRate = currentRpm > 0 ? (errorsPerMin / currentRpm * 100) : 0;
+                const availability = Math.max(0, 100 - errorRate);
+
+                return {
+                    currentRpm: Math.round(currentRpm),
+                    responseTime: Math.round(responseTime),
+                    errorRate: Math.round(errorRate * 100) / 100,
+                    availability: Math.round(availability * 100) / 100
+                };
+            }
+
+            getLatestValue(data) {
+                if (!data || !Array.isArray(data) || data.length === 0) return 0;
+                
+                // Get the most recent non-null value
+                for (let i = data.length - 1; i >= 0; i--) {
+                    if (data[i].value !== undefined && data[i].value !== null && data[i].value >= 0) {
+                        return data[i].value;
+                    }
+                }
+                
+                return 0;
+            }
+
+            initializeGauge() {
+                const ctx = document.getElementById('throughputGauge').getContext('2d');
+                
+                this.gauge = new Chart(ctx, {
+                    type: 'doughnut',
+                    data: {
+                        datasets: [{
+                            data: [0, 100],
+                            backgroundColor: [
+                                'rgba(54, 162, 235, 0.8)',
+                                'rgba(229, 229, 229, 0.3)'
+                            ],
+                            borderWidth: 0,
+                            cutout: '75%'
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        rotation: -90,
+                        circumference: 180,
+                        plugins: {
+                            legend: { display: false },
+                            tooltip: { enabled: false }
+                        }
+                    },
+                    plugins: [{
+                        id: 'gaugeCenterText',
+                        beforeDraw: (chart) => {
+                            const { ctx, chartArea: { width, height } } = chart;
+                            ctx.restore();
+                            
+                            const value = chart.data.datasets[0].data[0];
+                            const percentage = Math.round((value / this.maxThroughput) * 100);
+                            
+                            // Main value
+                            ctx.font = 'bold 28px Segoe UI';
+                            ctx.fillStyle = '#2c3e50';
+                            ctx.textAlign = 'center';
+                            ctx.fillText(value.toLocaleString(), width / 2, height / 2 + 5);
+                            
+                            // Percentage
+                            ctx.font = '11px Segoe UI';
+                            ctx.fillStyle = '#7f8c8d';
+                            ctx.fillText(`${percentage}% of target`, width / 2, height / 2 + 25);
+                            
+                            ctx.save();
+                        }
+                    }]
+                });
+            }
+
+            updateUI(metrics) {
+                // Update gauge
+                this.updateGauge(metrics.currentRpm);
+
+                // Update metric cards
+                document.getElementById('currentRpm').textContent = metrics.currentRpm.toLocaleString();
+                document.getElementById('currentRpm').className = 'metric-value';
+                
+                document.getElementById('responseTime').textContent = metrics.responseTime + 'ms';
+                document.getElementById('responseTime').className = 'metric-value';
+                
+                document.getElementById('errorRate').textContent = metrics.errorRate.toFixed(1) + '%';
+                document.getElementById('errorRate').className = 'metric-value';
+                
+                document.getElementById('availability').textContent = metrics.availability.toFixed(1) + '%';
+                document.getElementById('availability').className = 'metric-value';
+
+                // Update performance status
+                this.updatePerformanceStatus(metrics);
+
+                // Update timestamp
+                document.getElementById('lastUpdate').textContent = 
+                    `Updated: ${new Date().toLocaleTimeString()}`;
+
+                // Update status indicator
+                this.updateStatusIndicator(metrics);
+            }
+
+            updateGauge(value = 0) {
+                if (!this.gauge) return;
+                
+                const gaugeValue = Math.min(value, this.maxThroughput);
+                this.gauge.data.datasets[0].data = [
+                    gaugeValue,
+                    this.maxThroughput - gaugeValue
+                ];
+                this.gauge.update('none');
+            }
+
+            updatePerformanceStatus(metrics) {
+                const statusElement = document.getElementById('performanceStatus');
+                let status, className;
+
+                if (metrics.errorRate < 0.5 && metrics.responseTime < 200 && metrics.availability > 99.5) {
+                    status = '🚀 Excellent Performance';
+                    className = 'excellent';
+                } else if (metrics.errorRate < 1 && metrics.responseTime < 500 && metrics.availability > 99) {
+                    status = '✅ Good Performance';
+                    className = 'good';
+                } else if (metrics.errorRate < 2 && metrics.responseTime < 1000 && metrics.availability > 98) {
+                    status = '⚠️ Performance Warning';
+                    className = 'warning';
+                } else {
+                    status = '🚨 Critical Issues';
+                    className = 'critical';
+                }
+
+                statusElement.textContent = status;
+                statusElement.className = `performance-indicator ${className}`;
+            }
+
+            updateStatusIndicator(metrics) {
+                const indicator = document.getElementById('statusIndicator');
+                if (metrics.availability > 99 && metrics.errorRate < 1) {
+                    indicator.style.background = '#4CAF50';
+                    indicator.style.boxShadow = '0 0 8px rgba(76, 175, 80, 0.5)';
+                } else if (metrics.availability > 98) {
+                    indicator.style.background = '#FF9800';
+                    indicator.style.boxShadow = '0 0 8px rgba(255, 152, 0, 0.5)';
+                } else {
+                    indicator.style.background = '#F44336';
+                    indicator.style.boxShadow = '0 0 8px rgba(244, 67, 54, 0.5)';
+                }
+            }
+
+            updateConnectionStatus(status) {
+                const statusEl = document.getElementById('connectionStatus');
+                statusEl.className = `connection-status ${status}`;
+            }
+
+            startAutoRefresh() {
+                // Clear any existing interval
+                if (this.refreshInterval) {
+                    clearInterval(this.refreshInterval);
+                }
+                
+                // Refresh every 30 seconds
+                this.refreshInterval = setInterval(() => {
+                    if (!this.isLoading) {
+                        this.loadData();
+                    }
+                }, 30000);
+            }
+
+            showError(message) {
+                const errorContainer = document.getElementById('errorContainer');
+                errorContainer.innerHTML = `
+                    <div class="error-state">❌ ${message}</div>
+                `;
+                
+                // Auto-hide error after 10 seconds
+                setTimeout(() => {
+                    this.clearError();
+                }, 10000);
+            }
+
+            clearError() {
+                document.getElementById('errorContainer').innerHTML = '';
+            }
+
+            destroy() {
+                if (this.refreshInterval) {
+                    clearInterval(this.refreshInterval);
+                }
+                if (this.gauge) {
+                    this.gauge.destroy();
+                }
+            }
+        }
+
+        // Initialize widget
+        let widget = null;
+        document.addEventListener('DOMContentLoaded', () => {
+            widget = new AppDynamicsThroughputWidget();
+        });
+
+        // Cleanup
+        window.addEventListener('beforeunload', () => {
+            if (widget) widget.destroy();
+        });
+
+        // Handle iframe resize
+        window.addEventListener('resize', () => {
+            if (widget && widget.gauge) {
+                widget.gauge.resize();
+            }
+        });
+
+        // Global error handler
+        window.addEventListener('error', (event) => {
+            console.error('Widget error:', event.error);
+            if (widget) {
+                widget.showError('Unexpected error: ' + event.error.message);
+            }
+        });
+    </script>
+
+
+</body></html>
