@@ -331,13 +331,13 @@
 
     <script>
         class AppDynamicsThroughputWidget {
-            constructor() {
+          //  constructor() {
                 // Configuration - Update this URL to your deployed proxy server
-                this.config = {
-                    proxyUrl: window.location.hostname === 'localhost' 
-                        ? 'http://localhost:3000/api/appd'
-                        : '/api/appd' // Use relative URL in production
-                };
+                //this.config = {
+                   // proxyUrl: window.location.hostname === 'localhost' 
+                     //  ? 'http://localhost:3000/api/appd'
+                     //   : '/api/appd' // Use relative URL in production
+               // };
                 
                 this.applications = [];
                 this.selectedAppId = null;
